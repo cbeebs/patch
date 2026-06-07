@@ -1,0 +1,12 @@
+{
+  "appId": "health.patch.app",
+  "appName": "Patch",
+  "webDir": "dist",
+  "server": {
+    "androidScheme": "https",
+    "iosScheme": "https"
+  },
+  "plugins": {
+    "SplashScreen": { "launchShowDuration": 0 }
+  }
+}

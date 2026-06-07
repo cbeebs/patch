@@ -1,0 +1,16 @@
+export const SPECIALISTS = [
+  {id:"dermatologist", name:"Dr. Derm Skinner", spec:"Dermatology",         initials:"DS",emoji:"🧴",bio:"Skin conditions, acne, eczema and rosacea. Tracks food-skin correlations over time."},
+  {id:"gastro",        name:"Dr. Gus Trott",    spec:"Gastroenterology",    initials:"GT",emoji:"🫃",bio:"Gut health, IBS, bloating and Crohn's. Tracks digestive responses to food."},
+  {id:"allergist",     name:"Dr. Al Ergic",     spec:"Allergy & Immunology",initials:"AE",emoji:"🌿",bio:"Food allergies, intolerances and immune responses."},
+  {id:"dietitian",     name:"Dr. Flora Bloom",  spec:"Dietetics",           initials:"FB",emoji:"🥗",bio:"Nutritional balance, deficiencies and dietary patterns."},
+  {id:"rheumatologist",name:"Dr. Jo Intwood",   spec:"Rheumatology",        initials:"JI",emoji:"🦴",bio:"Joint pain, inflammation and autoimmune conditions linked to diet."},
+  {id:"neurologist",   name:"Dr. Mig Raines",   spec:"Neurology",           initials:"MR",emoji:"🧠",bio:"Migraines, brain fog and food-triggered headaches."},
+  {id:"endocrinologist",name:"Dr. Endo Crain",  spec:"Endocrinology",       initials:"EC",emoji:"⚗️",bio:"Thyroid, blood sugar, hormones and metabolic conditions."},
+  {id:"cardiologist",  name:"Dr. Art Eerie",    spec:"Cardiology",          initials:"AE",emoji:"❤️",bio:"Blood pressure, cholesterol and heart health through diet."},
+  {id:"hepatologist",  name:"Dr. Liv Holt",     spec:"Hepatology",          initials:"LH",emoji:"🫀",bio:"Liver health and dietary impact on liver function."},
+  {id:"gynaecologist", name:"Dr. Cy Klara",     spec:"Gynaecology",         initials:"CK",emoji:"🌸",bio:"Hormonal acne, PCOS and endometriosis linked to diet."},
+  {id:"paediatrician", name:"Dr. Barry Atric",  spec:"Paediatrics",         initials:"BA",emoji:"👶",bio:"Children's food allergies and intolerances."},
+  {id:"ent",           name:"Dr. Sinus Ward",   spec:"ENT",                 initials:"SW",emoji:"👃",bio:"Sinus issues and congestion linked to food."},
+  {id:"pulmonologist", name:"Dr. Bron Keele",   spec:"Pulmonology",         initials:"BK",emoji:"🫁",bio:"Asthma triggers and food-linked respiratory responses."},
+  {id:"psychiatrist",  name:"Dr. Moody Brayne", spec:"Psychiatry",          initials:"MB",emoji:"🧘",bio:"Mood, anxiety and the gut-brain axis."},
+]

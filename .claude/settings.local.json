@@ -1,0 +1,15 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(awk NR>=551 && NR<=780 *)",
+      "Bash(awk NR>=780 && NR<=986 *)",
+      "Bash(awk 'NR>=4 && NR<=10 {print NR\": \"$0}' /Users/admin/Downloads/patch/App.jsx)",
+      "Bash(awk 'NR>=5 && NR<=8 { *)",
+      "Bash(npm install *)",
+      "Bash(sudo chown -R 501:20 \"/Users/admin/.npm\")",
+      "Bash(npm run *)",
+      "Bash(git config *)",
+      "Bash(git *)"
+    ]
+  }
+}
