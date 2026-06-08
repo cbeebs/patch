@@ -55,27 +55,30 @@ export function onAuthChange(callback) {
 }
 
 // ── Messages ──────────────────────────────────────────────────────────────────
+// Schema: id, user_id, sender, msg_text, image_data, ts, metadata jsonb
 
 function msgToRow(msg, userId) {
+  const metadata = {}
+  if (msg.allergenPicker) metadata.allergenPicker = msg.allergenPicker
+  if (msg.allergenDone)   metadata.allergenDone   = msg.allergenDone
   return {
-    id: msg.id,
-    user_id: userId,
-    sender: msg.role,
-    content: msg.text ?? null,
-    image: msg.image ?? null,
-    ts: msg.ts,
-    allergen_picker: msg.allergenPicker ?? null,
-    allergen_done: msg.allergenDone ?? false,
+    id:         msg.id,
+    user_id:    userId,
+    sender:     msg.role,
+    msg_text:   msg.text   ?? null,
+    image_data: msg.image  ?? null,
+    ts:         msg.ts,
+    metadata,
   }
 }
 
 function rowToMsg(row) {
-  const m = { id: row.id, role: row.sender, ts: row.ts }
-  if (row.content != null)         m.text = row.content
-  if (row.image != null)           m.image = row.image
-  if (row.allergen_picker != null) m.allergenPicker = row.allergen_picker
-  if (row.allergen_done)           m.allergenDone = row.allergen_done
-  return m
+  const msg = { id: row.id, role: row.sender, ts: row.ts }
+  if (row.msg_text   != null) msg.text  = row.msg_text
+  if (row.image_data != null) msg.image = row.image_data
+  if (row.metadata?.allergenPicker) msg.allergenPicker = row.metadata.allergenPicker
+  if (row.metadata?.allergenDone)   msg.allergenDone   = row.metadata.allergenDone
+  return msg
 }
 
 export async function fetchMessages(userId) {
@@ -85,71 +88,65 @@ export async function fetchMessages(userId) {
     .select('*')
     .eq('user_id', userId)
     .order('ts', { ascending: true })
-  if (error) { console.error('fetchMessages', error); return null }
+  if (error) { console.error('fetchMessages:', error.message); return null }
   return data.map(rowToMsg)
 }
 
-export async function insertMessage(msg, userId) {
+export async function upsertMessage(msg, userId) {
   if (!supabase) return
   const { error } = await supabase.from('messages').upsert(msgToRow(msg, userId))
-  if (error) console.error('insertMessage', error)
+  if (error) console.error('upsertMessage:', error.message)
 }
 
 export async function deleteMessage(id, userId) {
   if (!supabase) return
-  const { error } = await supabase.from('messages').delete().eq('id', id).eq('user_id', userId)
-  if (error) console.error('deleteMessage', error)
+  const { error } = await supabase
+    .from('messages').delete().eq('id', id).eq('user_id', userId)
+  if (error) console.error('deleteMessage:', error.message)
 }
 
-export async function updateMessage(id, updates, userId) {
+export async function updateMessageMeta(id, meta, userId) {
   if (!supabase) return
-  const row = {}
-  if ('allergenDone' in updates)  row.allergen_done   = updates.allergenDone
-  if ('allergenPicker' in updates) row.allergen_picker = updates.allergenPicker
-  if ('text' in updates)           row.content         = updates.text
-  const { error } = await supabase.from('messages').update(row).eq('id', id).eq('user_id', userId)
-  if (error) console.error('updateMessage', error)
+  const { data: existing } = await supabase
+    .from('messages').select('metadata').eq('id', id).eq('user_id', userId).single()
+  const merged = { ...(existing?.metadata ?? {}), ...meta }
+  const { error } = await supabase
+    .from('messages').update({ metadata: merged }).eq('id', id).eq('user_id', userId)
+  if (error) console.error('updateMessageMeta:', error.message)
 }
 
-// ── Food Logs ─────────────────────────────────────────────────────────────────
+// ── Food logs ─────────────────────────────────────────────────────────────────
+// Schema: id (uuid), user_id, log_date, meal_type, log_time, description,
+//         ingredients jsonb, allergens jsonb, ts, is_pending, msg_ref
 
 function logToRow(log, userId) {
   return {
-    user_id: userId,
-    log_date: log.date,
-    meal: log.meal ?? null,
-    log_time: log.time ?? null,
+    user_id:     userId,
+    log_date:    log.date,
+    meal_type:   log.meal        ?? null,
+    log_time:    log.time        ?? null,
     description: log.description ?? null,
     ingredients: log.ingredients ?? [],
-    allergens: log.allergens ?? [],
-    ts: log.ts,
-    pending: log._pending ?? false,
-    msg_id: log._msgId ?? null,
-    product_name: log.productName ?? null,
-    brand: log.brand ?? null,
-    nutritional: log.nutritional ?? null,
-    source: log.source ?? null,
+    allergens:   log.allergens   ?? [],
+    ts:          log.ts,
+    is_pending:  log._pending    ?? false,
+    msg_ref:     log._msgId      ?? null,
   }
 }
 
 function rowToLog(row) {
-  const l = {
-    _dbId: row.id,
-    date: row.log_date,
-    ts: row.ts,
+  return {
+    _dbId:       row.id,
+    date:        row.log_date,
+    meal:        row.meal_type   ?? null,
+    time:        row.log_time    ?? null,
+    description: row.description ?? null,
     ingredients: row.ingredients ?? [],
-    allergens: row.allergens ?? [],
-    _pending: row.pending ?? false,
+    allergens:   row.allergens   ?? [],
+    ts:          row.ts,
+    _pending:    row.is_pending  ?? false,
+    _msgId:      row.msg_ref     ?? null,
   }
-  if (row.meal != null)     l.meal = row.meal
-  if (row.log_time != null) l.time = row.log_time
-  if (row.description != null)  l.description = row.description
-  if (row.msg_id != null)       l._msgId = row.msg_id
-  if (row.product_name != null) l.productName = row.product_name
-  if (row.brand != null)        l.brand = row.brand
-  if (row.nutritional != null)  l.nutritional = row.nutritional
-  if (row.source != null)       l.source = row.source
-  return l
 }
 
 export async function fetchFoodLogs(userId) {
@@ -159,7 +156,7 @@ export async function fetchFoodLogs(userId) {
     .select('*')
     .eq('user_id', userId)
     .order('ts', { ascending: true })
-  if (error) { console.error('fetchFoodLogs', error); return null }
+  if (error) { console.error('fetchFoodLogs:', error.message); return null }
   return data.map(rowToLog)
 }
 
@@ -170,33 +167,41 @@ export async function insertFoodLog(log, userId) {
     .insert(logToRow(log, userId))
     .select('id')
     .single()
-  if (error) { console.error('insertFoodLog', error); return null }
+  if (error) { console.error('insertFoodLog:', error.message); return null }
   return data.id
 }
 
-export async function updateFoodLog(dbId, updates, userId) {
+export async function updateFoodLog(dbId, patch, userId) {
   if (!supabase) return
   const row = {}
-  if ('allergens' in updates)  row.allergens = updates.allergens
-  if ('_pending' in updates)   row.pending   = updates._pending
-  const { error } = await supabase.from('food_logs').update(row).eq('id', dbId).eq('user_id', userId)
-  if (error) console.error('updateFoodLog', error)
+  if ('allergens' in patch) row.allergens  = patch.allergens
+  if ('_pending'  in patch) row.is_pending = patch._pending
+  const { error } = await supabase
+    .from('food_logs').update(row).eq('id', dbId).eq('user_id', userId)
+  if (error) console.error('updateFoodLog:', error.message)
 }
 
-// ── Symptom Logs ──────────────────────────────────────────────────────────────
+// ── Symptom logs ──────────────────────────────────────────────────────────────
+// Schema: id (uuid), user_id, log_date, severity smallint, conditions jsonb, ts
 
 function symptomToRow(log, userId) {
   return {
-    user_id: userId,
-    log_date: log.date,
-    severity: log.severity,
+    user_id:    userId,
+    log_date:   log.date,
+    severity:   log.severity,
     conditions: log.conditions ?? [],
-    ts: log.ts,
+    ts:         log.ts,
   }
 }
 
 function rowToSymptom(row) {
-  return { _dbId: row.id, date: row.log_date, severity: row.severity, conditions: row.conditions ?? [], ts: row.ts }
+  return {
+    _dbId:      row.id,
+    date:       row.log_date,
+    severity:   row.severity,
+    conditions: row.conditions ?? [],
+    ts:         row.ts,
+  }
 }
 
 export async function fetchSymptomLogs(userId) {
@@ -206,7 +211,7 @@ export async function fetchSymptomLogs(userId) {
     .select('*')
     .eq('user_id', userId)
     .order('ts', { ascending: true })
-  if (error) { console.error('fetchSymptomLogs', error); return null }
+  if (error) { console.error('fetchSymptomLogs:', error.message); return null }
   return data.map(rowToSymptom)
 }
 
@@ -217,73 +222,28 @@ export async function insertSymptomLog(log, userId) {
     .insert(symptomToRow(log, userId))
     .select('id')
     .single()
-  if (error) { console.error('insertSymptomLog', error); return null }
+  if (error) { console.error('insertSymptomLog:', error.message); return null }
   return data.id
 }
 
-// ── Doctors ───────────────────────────────────────────────────────────────────
+// ── User data (doctors + onboarded) ──────────────────────────────────────────
+// Schema: user_id (pk), doctors jsonb, onboarded boolean, updated_at
 
-function docToRow(doc, userId) {
-  return {
-    id: doc.id,
-    user_id: userId,
-    doc_name: doc.name,
-    spec: doc.spec ?? null,
-    initials: doc.initials ?? null,
-    emoji: doc.emoji ?? null,
-    bio: doc.bio ?? null,
-  }
-}
-
-function rowToDoc(row) {
-  const d = { id: row.id, name: row.doc_name }
-  if (row.spec != null)     d.spec = row.spec
-  if (row.initials != null) d.initials = row.initials
-  if (row.emoji != null)    d.emoji = row.emoji
-  if (row.bio != null)      d.bio = row.bio
-  return d
-}
-
-export async function fetchDoctors(userId) {
+export async function fetchUserData(userId) {
   if (!supabase) return null
   const { data, error } = await supabase
-    .from('doctors')
-    .select('*')
-    .eq('user_id', userId)
-    .order('created_at', { ascending: true })
-  if (error) { console.error('fetchDoctors', error); return null }
-  return data.map(rowToDoc)
-}
-
-export async function insertDoctor(doc, userId) {
-  if (!supabase) return
-  const { error } = await supabase.from('doctors').upsert(docToRow(doc, userId))
-  if (error) console.error('insertDoctor', error)
-}
-
-export async function deleteDoctor(docId, userId) {
-  if (!supabase) return
-  const { error } = await supabase.from('doctors').delete().eq('id', docId).eq('user_id', userId)
-  if (error) console.error('deleteDoctor', error)
-}
-
-// ── User Settings ─────────────────────────────────────────────────────────────
-
-export async function fetchSettings(userId) {
-  if (!supabase) return null
-  const { data, error } = await supabase
-    .from('user_settings')
-    .select('onboarded')
+    .from('user_data')
+    .select('doctors, onboarded')
     .eq('user_id', userId)
     .maybeSingle()
-  if (error) { console.error('fetchSettings', error); return null }
-  return data
+  if (error) { console.error('fetchUserData:', error.message); return null }
+  return data ?? { doctors: [], onboarded: false }
 }
 
-export async function upsertSettings(userId, settings) {
+export async function saveUserData(userId, { doctors, onboarded }) {
   if (!supabase) return
   const { error } = await supabase
-    .from('user_settings')
-    .upsert({ user_id: userId, ...settings, updated_at: new Date().toISOString() })
-  if (error) console.error('upsertSettings', error)
+    .from('user_data')
+    .upsert({ user_id: userId, doctors, onboarded, updated_at: new Date().toISOString() })
+  if (error) console.error('saveUserData:', error.message)
 }

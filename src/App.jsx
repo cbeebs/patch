@@ -1,13 +1,12 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { T } from './constants/theme.js'
 import { load, save, MSGS_KEY, LOGS_KEY, SYMPTOM_KEY, DOCTORS_KEY, ONBOARD_KEY, SCREEN_KEY } from './lib/utils.js'
 import {
   supabase, getSession, onAuthChange, signOut,
-  fetchMessages, insertMessage, updateMessage, deleteMessage,
+  fetchMessages, upsertMessage, deleteMessage, updateMessageMeta,
   fetchFoodLogs, insertFoodLog, updateFoodLog,
   fetchSymptomLogs, insertSymptomLog,
-  fetchDoctors, insertDoctor,
-  fetchSettings, upsertSettings,
+  fetchUserData, saveUserData,
 } from './lib/supabase.js'
 import { Auth } from './components/Auth.jsx'
 import { ContactsScreen } from './components/ContactsScreen.jsx'
@@ -17,7 +16,7 @@ import { AnalysisScreen } from './components/AnalysisScreen.jsx'
 
 export default function App() {
   const [session,      setSession]      = useState(undefined)
-  const [screen,       setScreen]       = useState(()=>load(SCREEN_KEY,"contacts"))
+  const [screen,       setScreen]       = useState(()=>load(SCREEN_KEY,'contacts'))
   const [messages,     setMessages]     = useState(()=>load(MSGS_KEY,[]))
   const [foodLogs,     setFoodLogs]     = useState(()=>load(LOGS_KEY,[]))
   const [symptomLogs,  setSymptomLogs]  = useState(()=>load(SYMPTOM_KEY,[]))
@@ -25,6 +24,8 @@ export default function App() {
   const [onboarded,    setOnboarded]    = useState(()=>load(ONBOARD_KEY,false))
   const [profile,      setProfile]      = useState(null)
   const [showAnalysis, setShowAnalysis] = useState(false)
+
+  const supabaseLoaded = useRef(false)
 
   // ── Auth ────────────────────────────────────────────────────────────────────
 
@@ -42,19 +43,22 @@ export default function App() {
 
   useEffect(()=>{
     if(!session?.user?.id) return
+    supabaseLoaded.current = false
     const uid = session.user.id
     Promise.all([
       fetchMessages(uid),
       fetchFoodLogs(uid),
       fetchSymptomLogs(uid),
-      fetchDoctors(uid),
-      fetchSettings(uid),
-    ]).then(([msgs, logs, symptoms, docs, settings])=>{
-      if(msgs != null)     { setMessages(msgs);    save(MSGS_KEY, msgs) }
-      if(logs != null)     { setFoodLogs(logs);    save(LOGS_KEY, logs) }
-      if(symptoms != null) { setSymptomLogs(symptoms); save(SYMPTOM_KEY, symptoms) }
-      if(docs != null)     { setDoctors(docs);     save(DOCTORS_KEY, docs) }
-      if(settings != null) { setOnboarded(settings.onboarded ?? false); save(ONBOARD_KEY, settings.onboarded ?? false) }
+      fetchUserData(uid),
+    ]).then(([msgs, logs, symptoms, userData])=>{
+      if(msgs     != null) { setMessages(msgs);                    save(MSGS_KEY,    msgs) }
+      if(logs     != null) { setFoodLogs(logs);                    save(LOGS_KEY,    logs) }
+      if(symptoms != null) { setSymptomLogs(symptoms);             save(SYMPTOM_KEY, symptoms) }
+      if(userData != null) {
+        setDoctors(userData.doctors ?? []);                        save(DOCTORS_KEY, userData.doctors ?? [])
+        setOnboarded(userData.onboarded ?? false);                 save(ONBOARD_KEY, userData.onboarded ?? false)
+      }
+      supabaseLoaded.current = true
     })
   },[session?.user?.id])
 
@@ -71,63 +75,63 @@ export default function App() {
 
   const userId = session?.user?.id
 
-  const addMessage = useCallback((msg) => {
-    setMessages(p => [...p, msg])
-    if(userId) insertMessage(msg, userId)
-  }, [userId])
+  const addMessage = useCallback((msg)=>{
+    setMessages(p=>[...p, msg])
+    if(userId) upsertMessage(msg, userId)
+  },[userId])
 
-  const removeMessage = useCallback((id) => {
-    setMessages(p => p.filter(m => m.id !== id))
+  const removeMessage = useCallback((id)=>{
+    setMessages(p=>p.filter(m=>m.id!==id))
     if(userId) deleteMessage(id, userId)
-  }, [userId])
+  },[userId])
 
-  const patchMessage = useCallback((id, updates) => {
-    setMessages(p => p.map(m => m.id === id ? {...m, ...updates} : m))
-    if(userId) updateMessage(id, updates, userId)
-  }, [userId])
+  const patchMessage = useCallback((id, updates)=>{
+    setMessages(p=>p.map(m=>m.id===id ? {...m,...updates} : m))
+    if(userId) updateMessageMeta(id, updates, userId)
+  },[userId])
 
-  const addFoodLog = useCallback(async (log) => {
+  const addFoodLog = useCallback(async (log)=>{
     let dbId = null
     if(userId) dbId = await insertFoodLog(log, userId)
-    setFoodLogs(p => [...p, dbId ? {...log, _dbId: dbId} : log])
+    setFoodLogs(p=>[...p, dbId ? {...log, _dbId: dbId} : log])
     return dbId
-  }, [userId])
+  },[userId])
 
-  const patchFoodLog = useCallback((msgId, updates) => {
-    setFoodLogs(p => p.map(l => {
+  const patchFoodLog = useCallback((msgId, patch)=>{
+    setFoodLogs(p=>p.map(l=>{
       if(l._msgId !== msgId) return l
-      const updated = {...l, ...updates}
-      if(l._dbId && userId) updateFoodLog(l._dbId, updates, userId)
-      return updated
+      if(l._dbId && userId) updateFoodLog(l._dbId, patch, userId)
+      return {...l, ...patch}
     }))
-  }, [userId])
+  },[userId])
 
-  const addSymptomLog = useCallback(async (log) => {
+  const addSymptomLog = useCallback(async (log)=>{
     let dbId = null
     if(userId) dbId = await insertSymptomLog(log, userId)
-    setSymptomLogs(p => [...p, dbId ? {...log, _dbId: dbId} : log])
-  }, [userId])
+    setSymptomLogs(p=>[...p, dbId ? {...log, _dbId: dbId} : log])
+  },[userId])
 
-  const addDoctor = useCallback((doc) => {
-    setDoctors(p => {
-      if(p.find(d=>d.id===doc.id)) return p
-      if(userId) insertDoctor(doc, userId)
-      return [...p, doc]
+  const addDoctor = useCallback((doc)=>{
+    setDoctors(prev=>{
+      if(prev.find(d=>d.id===doc.id)) return prev
+      const next = [...prev, doc]
+      if(userId) saveUserData(userId, { doctors: next, onboarded })
+      return next
     })
-  }, [userId])
+  },[userId, onboarded])
 
-  const setOnboardedPersisted = useCallback((v) => {
+  const setOnboardedPersisted = useCallback((v)=>{
     setOnboarded(v)
     save(ONBOARD_KEY, v)
-    if(userId) upsertSettings(userId, { onboarded: v })
-  }, [userId])
+    if(userId) saveUserData(userId, { doctors, onboarded: v })
+  },[userId, doctors])
 
   // ── Render ──────────────────────────────────────────────────────────────────
 
   if(session === undefined) {
     return (
-      <div style={{height:"100dvh",display:"flex",alignItems:"center",justifyContent:"center",background:T.bg}}>
-        <div style={{width:36,height:36,borderRadius:"50%",border:`3px solid ${T.border}`,borderTopColor:T.coral,animation:"patchSpin 0.7s linear infinite"}}/>
+      <div style={{height:'100dvh',display:'flex',alignItems:'center',justifyContent:'center',background:T.bg}}>
+        <div style={{width:36,height:36,borderRadius:'50%',border:`3px solid ${T.border}`,borderTopColor:T.coral,animation:'patchSpin 0.7s linear infinite'}}/>
         <style>{`@keyframes patchSpin{to{transform:rotate(360deg);}}`}</style>
       </div>
     )
@@ -138,7 +142,7 @@ export default function App() {
   }
 
   return (
-    <div style={{fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Segoe UI',sans-serif",height:"100dvh",maxWidth:430,margin:"0 auto",position:"relative",overflow:"hidden",background:T.bg}}>
+    <div style={{fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Segoe UI',sans-serif",height:'100dvh',maxWidth:430,margin:'0 auto',position:'relative',overflow:'hidden',background:T.bg}}>
       <style>{`
         *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;margin:0;padding:0;touch-action:manipulation;}
         body{background:#FAF8F5;overscroll-behavior:none;}
@@ -153,15 +157,15 @@ export default function App() {
         input[type=range]{cursor:pointer;touch-action:none;}
       `}</style>
 
-      {screen==="contacts"&&(
+      {screen==='contacts'&&(
         <ContactsScreen doctors={doctors} msgCount={messages.length}
-          onOpenChat={()=>setScreen("chat")}
+          onOpenChat={()=>setScreen('chat')}
           onAddDoctor={addDoctor}
           onOpenAnalysis={()=>setShowAnalysis(true)}
           onOpenProfile={setProfile}
           onSignOut={()=>setSession(null)}/>
       )}
-      {screen==="chat"&&(
+      {screen==='chat'&&(
         <ChatScreen messages={messages}
           addMessage={addMessage}
           patchMessage={patchMessage}
@@ -171,7 +175,7 @@ export default function App() {
           patchFoodLog={patchFoodLog}
           symptomLogs={symptomLogs}
           addSymptomLog={addSymptomLog}
-          onBack={()=>setScreen("contacts")}
+          onBack={()=>setScreen('contacts')}
           onboarded={onboarded}
           setOnboarded={setOnboardedPersisted}
           onOpenProfile={setProfile}/>
