@@ -61,6 +61,19 @@ export default function App() {
     if(!session?.user?.id) return
     supabaseLoaded.current = false
     const uid = session.user.id
+
+    // Reload local-only state that may have been written by DemoFlow before session was set
+    const localD1 = load(DAY1_KEY, null)
+    if (localD1) setDay1Data(localD1)
+    const localFN = load(FIRSTNAME_KEY, '')
+    if (localFN) setFirstName(localFN)
+    // Show Day 1 popover if DemoFlow requested it
+    const showD1Flag = load('patch_v4_show_day1', false)
+    if (showD1Flag && localD1) {
+      localStorage.removeItem('patch_v4_show_day1')
+      setTimeout(()=> setShowDay1Popover(true), 800)
+    }
+
     Promise.all([
       fetchMessages(uid),
       fetchFoodLogs(uid),
@@ -71,8 +84,16 @@ export default function App() {
       if(logs     != null) { setFoodLogs(logs);               save(LOGS_KEY,    logs) }
       if(symptoms != null) { setSymptomLogs(symptoms);        save(SYMPTOM_KEY, symptoms) }
       if(userData != null) {
-        setDoctors(userData.doctors ?? []);                   save(DOCTORS_KEY, userData.doctors ?? [])
-        setOnboarded(userData.onboarded ?? false);            save(ONBOARD_KEY, userData.onboarded ?? false)
+        setDoctors(userData.doctors ?? [])
+        save(DOCTORS_KEY, userData.doctors ?? [])
+        // OR with localStorage so DemoFlow's onboarded:true isn't clobbered if Supabase sync lagged
+        const localOnboarded = load(ONBOARD_KEY, false)
+        const mergedOnboarded = userData.onboarded || localOnboarded
+        setOnboarded(mergedOnboarded)
+        save(ONBOARD_KEY, mergedOnboarded)
+        if (!userData.onboarded && localOnboarded) {
+          saveUserData(uid, { doctors: userData.doctors ?? [], onboarded: true })
+        }
       }
       supabaseLoaded.current = true
     })

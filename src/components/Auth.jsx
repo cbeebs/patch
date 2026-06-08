@@ -2,8 +2,11 @@ import { useState, useEffect } from 'react'
 import { T } from '../constants/theme.js'
 import { PATCH_LOCKUP } from '../assets/avatars.js'
 import { signIn, signUp, resetPassword, updatePassword, supabase } from '../lib/supabase.js'
+import { DemoFlow } from './DemoFlow.jsx'
+import { PWABanner } from './ui/PWABanner.jsx'
 
 export function Auth({ onAuth }) {
+  const [showDemo, setShowDemo] = useState(false)
   const [mode, setMode] = useState('login')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -118,6 +121,10 @@ export function Auth({ onAuth }) {
     fontFamily: 'inherit',
   }
 
+  if (showDemo) {
+    return <DemoFlow onBack={()=>setShowDemo(false)} onComplete={onAuth}/>
+  }
+
   return (
     <div style={{height:'100dvh',background:T.bg,display:'flex',alignItems:'center',justifyContent:'center',padding:'20px'}}>
       <div style={{background:T.card,borderRadius:20,padding:'32px 24px',width:'100%',maxWidth:390,border:`1px solid ${T.border}`}}>
@@ -138,6 +145,13 @@ export function Auth({ onAuth }) {
               <button type="button" style={linkBtn} onClick={()=>{clearMessages();setMode('signup')}}>Don't have an account? Create one</button>
             </div>
           </form>
+        )}
+        {mode === 'login' && (
+          <div style={{marginTop:24,paddingTop:16,borderTop:`1px solid ${T.border}`,textAlign:'center'}}>
+            <button type="button" onClick={()=>setShowDemo(true)} style={{background:'none',border:'none',color:T.muted,fontSize:12,cursor:'pointer',padding:'2px 0',fontFamily:'inherit',touchAction:'manipulation'}}>
+              Try a free skin assessment →
+            </button>
+          </div>
         )}
 
         {mode === 'signup' && (
@@ -179,6 +193,7 @@ export function Auth({ onAuth }) {
           </form>
         )}
       </div>
+      <PWABanner/>
     </div>
   )
 }

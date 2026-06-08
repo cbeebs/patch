@@ -22,11 +22,30 @@ export function ChatScreen({messages,addMessage,patchMessage,removeMessage,foodL
   const [sevCtx,setSevCtx]   = useState(null)
   const [sevVal,setSevVal]   = useState(2)
   const [error,setError]     = useState(null)
-  const endRef    = useRef(null)
-  const fileRef   = useRef(null)
-  const camRef    = useRef(null)
-  const statusRef = useRef(null)
-  const taRef     = useRef(null)
+  const endRef       = useRef(null)
+  const fileRef      = useRef(null)
+  const camRef       = useRef(null)
+  const statusRef    = useRef(null)
+  const taRef        = useRef(null)
+  const containerRef = useRef(null)
+
+  // Shrink container height to visual viewport when keyboard opens on iOS
+  useEffect(() => {
+    const vv = window.visualViewport
+    if (!vv) return
+    const update = () => {
+      if (containerRef.current) {
+        containerRef.current.style.height = `${vv.height}px`
+      }
+    }
+    vv.addEventListener('resize', update)
+    vv.addEventListener('scroll', update)
+    update()
+    return () => {
+      vv.removeEventListener('resize', update)
+      vv.removeEventListener('scroll', update)
+    }
+  }, [])
 
   // Auto-resize textarea when input changes
   useEffect(()=>{
@@ -149,8 +168,8 @@ export function ChatScreen({messages,addMessage,patchMessage,removeMessage,foodL
   const checkedToday=symptomLogs.some(l=>l.date===todayStr())
 
   return (
-    <div style={{display:'flex',flexDirection:'column',height:'100%',background:T.bg}}>
-      <div style={{background:T.card,borderBottom:`1px solid ${T.border}`,padding:'10px 16px',paddingTop:'max(14px,env(safe-area-inset-top))',display:'flex',alignItems:'center',gap:12}}>
+    <div ref={containerRef} style={{display:'flex',flexDirection:'column',height:'100%',background:T.bg}}>
+      <div style={{flexShrink:0,background:T.card,borderBottom:`1px solid ${T.border}`,padding:'10px 16px',paddingTop:'max(14px,env(safe-area-inset-top))',display:'flex',alignItems:'center',gap:12}}>
         <button onClick={onBack} style={{background:'none',border:'none',padding:'4px 6px 4px 0',cursor:'pointer',color:T.sub,touchAction:'manipulation'}}><BackIcon/></button>
         <div onClick={()=>onOpenProfile({id:'patch'})} style={{display:'flex',alignItems:'center',gap:10,cursor:'pointer',flex:1,touchAction:'manipulation'}}>
           <PatchAvatarImg size={36} online/>
@@ -192,7 +211,7 @@ export function ChatScreen({messages,addMessage,patchMessage,removeMessage,foodL
       )}
 
       {!sevCtx&&(
-        <div style={{background:T.card,borderTop:`1px solid ${T.border}`,padding:'8px 12px',paddingBottom:'max(10px,env(safe-area-inset-bottom))',display:'flex',alignItems:'flex-end',gap:8}}>
+        <div style={{flexShrink:0,background:T.card,borderTop:`1px solid ${T.border}`,padding:'8px 12px',paddingBottom:'max(10px,env(safe-area-inset-bottom))',display:'flex',alignItems:'flex-end',gap:8}}>
           <input ref={fileRef} type="file" accept="image/*" style={{display:'none'}} onChange={e=>{handleImage(e.target.files[0]);e.target.value='';}}/>
           <input ref={camRef} type="file" accept="image/*" capture="environment" style={{display:'none'}} onChange={e=>{handleImage(e.target.files[0]);e.target.value='';}}/>
           <IBtn onClick={()=>fileRef.current?.click()}><AttachIcon/></IBtn>

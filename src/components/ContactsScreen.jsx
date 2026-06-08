@@ -4,6 +4,7 @@ import { SPECIALISTS } from '../constants/specialists.js'
 import { PATCH_LOCKUP } from '../assets/avatars.js'
 import { PatchAvatarImg, SpecAvatar } from './ui/Avatars.jsx'
 import { BarIcon } from './ui/Icons.jsx'
+import { PWABanner } from './ui/PWABanner.jsx'
 
 function CRow({left,name,sub,right,unread,onTap,onAvatarTap}) {
   const [pressed,setPressed] = useState(false)
@@ -104,6 +105,7 @@ export function ContactsScreen({doctors,onOpenChat,onAddDoctor,onOpenAnalysis,on
           </p>
         )}
       </div>
+      <PWABanner/>
     </div>
   )
 }
