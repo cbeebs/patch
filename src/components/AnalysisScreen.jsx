@@ -75,7 +75,7 @@ function EmptyState() {
 
 // ── Main component ────────────────────────────────────────────────────────────
 
-export function AnalysisScreen({foodLogs,symptomLogs,onBack,closing}) {
+export function AnalysisScreen({foodLogs,symptomLogs,firstName,day1Data,onOpenDay1Popover,onBack,closing}) {
   const [data,setData]             = useState(null)
   const [loading,setLoading]       = useState(true)
   const [showComposer,setShowComposer] = useState(false)
@@ -136,7 +136,7 @@ export function AnalysisScreen({foodLogs,symptomLogs,onBack,closing}) {
             maxWidth:'60%',
           }}>
             <p style={{margin:'0 0 10px',fontSize:11,fontWeight:'700',color:T.coral,letterSpacing:'0.9px',textTransform:'uppercase'}}>ANALYSIS</p>
-            <h2 style={{margin:'0 0 16px',fontSize:31,fontWeight:'800',color:T.navy,letterSpacing:'-1px',lineHeight:1.08}}>Patch's Opinion</h2>
+            <h2 style={{margin:'0 0 16px',fontSize:31,fontWeight:'800',color:T.navy,letterSpacing:'-1px',lineHeight:1.08}}>{firstName ? `${firstName}'s Profile` : "Your Profile"}</h2>
             <p style={{margin:'0 0 16px',fontSize:12,color:'#8A7E76',lineHeight:1.65}}>
               {foodLogs.length} meals<br/>
               {symptomLogs.length} check-ins<br/>
@@ -235,6 +235,35 @@ export function AnalysisScreen({foodLogs,symptomLogs,onBack,closing}) {
             </>
           )}
         </div>
+
+        {/* ── Day 1 ── */}
+        {day1Data && (
+          <div style={{padding:'0 16px 8px'}}>
+            <p style={{margin:'0 0 10px',fontSize:10,fontWeight:'700',color:T.muted,letterSpacing:'0.9px',textTransform:'uppercase'}}>MY DAY 1</p>
+            <div onClick={onOpenDay1Popover} style={{
+              background:T.card,borderRadius:14,border:`1px solid ${T.border}`,
+              padding:'14px 16px',cursor:'pointer',display:'flex',alignItems:'center',gap:14,
+              touchAction:'manipulation',
+            }}>
+              {day1Data.photos?.front && (
+                <div style={{width:48,height:58,borderRadius:10,overflow:'hidden',border:`1px solid ${T.border}`,flexShrink:0}}>
+                  <img src={day1Data.photos.front} alt="Day 1" style={{width:'100%',height:'100%',objectFit:'cover'}}/>
+                </div>
+              )}
+              <div style={{flex:1,minWidth:0}}>
+                {day1Data.analysis?.condition && (
+                  <span style={{display:'inline-block',background:T.coralLight,color:T.coralDark,borderRadius:20,padding:'3px 10px',fontSize:12,fontWeight:700,marginBottom:5}}>
+                    {day1Data.analysis.condition}
+                  </span>
+                )}
+                <p style={{margin:0,fontSize:13,color:T.sub,lineHeight:1.5,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>
+                  {day1Data.analysis?.summary || 'View your initial skin assessment'}
+                </p>
+              </div>
+              <span style={{color:T.muted,fontSize:18,flexShrink:0}}>›</span>
+            </div>
+          </div>
+        )}
 
         {/* ── Letters ── */}
         <div style={{padding:'0 16px 32px'}}>

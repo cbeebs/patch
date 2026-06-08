@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { T } from './constants/theme.js'
-import { load, save, MSGS_KEY, LOGS_KEY, SYMPTOM_KEY, DOCTORS_KEY, ONBOARD_KEY, SCREEN_KEY } from './lib/utils.js'
+import { load, save, MSGS_KEY, LOGS_KEY, SYMPTOM_KEY, DOCTORS_KEY, ONBOARD_KEY, SCREEN_KEY, DAY1_KEY, FIRSTNAME_KEY } from './lib/utils.js'
 import {
   supabase, getSession, onAuthChange, signOut,
   fetchMessages, upsertMessage, deleteMessage, updateMessageMeta,
@@ -13,6 +13,9 @@ import { ContactsScreen } from './components/ContactsScreen.jsx'
 import { ChatScreen } from './components/ChatScreen.jsx'
 import { ProfileScreen } from './components/ProfileScreen.jsx'
 import { AnalysisScreen } from './components/AnalysisScreen.jsx'
+import { Onboarding } from './components/Onboarding.jsx'
+import { Day1Popover } from './components/Day1Popover.jsx'
+import { SettingsScreen } from './components/SettingsScreen.jsx'
 
 export default function App() {
   const [session,      setSession]      = useState(undefined)
@@ -22,8 +25,17 @@ export default function App() {
   const [symptomLogs,  setSymptomLogs]  = useState(()=>load(SYMPTOM_KEY,[]))
   const [doctors,      setDoctors]      = useState(()=>load(DOCTORS_KEY,[]))
   const [onboarded,    setOnboarded]    = useState(()=>load(ONBOARD_KEY,false))
+  const [day1Data,     setDay1Data]     = useState(()=>load(DAY1_KEY,null))
+  const [firstName,    setFirstName]    = useState(()=>load(FIRSTNAME_KEY,''))
   const [profile,      setProfile]      = useState(null)
   const [showAnalysis, setShowAnalysis] = useState(false)
+
+  // new overlay state
+  const [redoingOnboarding, setRedoingOnboarding] = useState(false)
+  const [showDay1Popover,   setShowDay1Popover]   = useState(false)
+  const [day1PopClosing,    setDay1PopClosing]     = useState(false)
+  const [showSettings,      setShowSettings]      = useState(false)
+  const [settingsClosing,   setSettingsClosing]   = useState(false)
 
   // closing-animation state for overlays
   const [analysisClosing, setAnalysisClosing] = useState(false)
@@ -130,6 +142,23 @@ export default function App() {
     if(userId) saveUserData(userId, { doctors, onboarded: v })
   },[userId, doctors])
 
+  // ── Persisted setters ───────────────────────────────────────────────────────
+
+  const setFirstNamePersisted = useCallback((v)=>{
+    setFirstName(v)
+    save(FIRSTNAME_KEY, v)
+  },[])
+
+  // ── Onboarding completion ───────────────────────────────────────────────────
+
+  const handleOnboardingComplete = useCallback((data)=>{
+    save(DAY1_KEY, data)
+    setDay1Data(data)
+    setOnboardedPersisted(true)
+    setRedoingOnboarding(false)
+    setShowDay1Popover(true)
+  },[setOnboardedPersisted])
+
   // ── Overlay open/close with exit animation ──────────────────────────────────
 
   const openAnalysis = () => setShowAnalysis(true)
@@ -142,6 +171,23 @@ export default function App() {
   const closeProfile = () => {
     setProfileClosing(true)
     setTimeout(()=>{ setProfile(null); setProfileClosing(false) }, 230)
+  }
+
+  const openDay1Popover  = () => setShowDay1Popover(true)
+  const closeDay1Popover = () => {
+    setDay1PopClosing(true)
+    setTimeout(()=>{ setShowDay1Popover(false); setDay1PopClosing(false) }, 240)
+  }
+
+  const openSettings  = () => setShowSettings(true)
+  const closeSettings = () => {
+    setSettingsClosing(true)
+    setTimeout(()=>{ setShowSettings(false); setSettingsClosing(false) }, 230)
+  }
+
+  const handleRedoOnboarding = () => {
+    closeSettings()
+    setTimeout(()=> setRedoingOnboarding(true), 260)
   }
 
   // ── Render ──────────────────────────────────────────────────────────────────
@@ -170,6 +216,9 @@ export default function App() {
         @keyframes pslide{from{transform:translateX(30px);opacity:0;}to{transform:translateX(0);opacity:1;}}
         @keyframes pslide-out{from{transform:translateX(0);opacity:1;}to{transform:translateX(30px);opacity:0;}}
         @keyframes pslide-up{from{transform:translateY(100%);}to{transform:translateY(0);}}
+        @keyframes pslide-down{from{transform:translateY(0);}to{transform:translateY(100%);}}
+        @keyframes pfadein{from{opacity:0;}to{opacity:1;}}
+        @keyframes pfadeout{from{opacity:1;}to{opacity:0;}}
         @keyframes patchSpin{to{transform:rotate(360deg);}}
         textarea{resize:none;}
         input[type=range]{cursor:pointer;touch-action:none;}
@@ -189,7 +238,9 @@ export default function App() {
           onAddDoctor={addDoctor}
           onOpenAnalysis={openAnalysis}
           onOpenProfile={openProfile}
-          onSignOut={()=>setSession(null)}/>
+          onOpenSettings={openSettings}
+          day1Photo={day1Data?.photos?.front||null}
+          firstName={firstName}/>
       </div>
 
       {/* Chat — always mounted; slides in from right */}
@@ -217,11 +268,33 @@ export default function App() {
       {/* Overlays */}
       {(showAnalysis||analysisClosing)&&(
         <AnalysisScreen foodLogs={foodLogs} symptomLogs={symptomLogs}
+          firstName={firstName||session?.user?.email?.split('@')[0]||null}
+          day1Data={day1Data}
+          onOpenDay1Popover={openDay1Popover}
           onBack={closeAnalysis} closing={analysisClosing}/>
       )}
       {(profile||profileClosing)&&(
         <ProfileScreen doc={profileDocRef.current} foodLogs={foodLogs}
           symptomLogs={symptomLogs} onBack={closeProfile} closing={profileClosing}/>
+      )}
+      {(showSettings||settingsClosing)&&(
+        <SettingsScreen
+          session={session}
+          day1Data={day1Data}
+          firstName={firstName}
+          onChangeName={setFirstNamePersisted}
+          foodLogs={foodLogs}
+          symptomLogs={symptomLogs}
+          onRedoOnboarding={handleRedoOnboarding}
+          onSignOut={async()=>{ await signOut(); setSession(null) }}
+          onBack={closeSettings}
+          closing={settingsClosing}/>
+      )}
+      {(showDay1Popover||day1PopClosing)&&day1Data&&(
+        <Day1Popover data={day1Data} onClose={closeDay1Popover} closing={day1PopClosing}/>
+      )}
+      {(!onboarded||redoingOnboarding)&&(
+        <Onboarding onComplete={handleOnboardingComplete}/>
       )}
     </div>
   )

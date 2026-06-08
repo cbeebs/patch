@@ -123,6 +123,34 @@ Analyse for correlations. Return ONLY valid JSON:
   }
 }
 
+export async function analyseDay1(photos, answers) {
+  const content = []
+  const photoUrl = photos?.front || photos?.left || photos?.right
+  if (photoUrl) {
+    const base64 = photoUrl.split(',')[1]
+    const mediaType = photoUrl.startsWith('data:image/png') ? 'image/png' : 'image/jpeg'
+    content.push({ type: 'image', source: { type: 'base64', media_type: mediaType, data: base64 } })
+  }
+  const lines = [
+    answers.duration     ? `Duration: ${answers.duration}` : null,
+    answers.locations?.length ? `Location on face: ${answers.locations.join(', ')}` : null,
+    answers.symptoms?.length  ? `Description: ${answers.symptoms.join(', ')}` : null,
+    answers.triggers?.length  ? `Possible triggers: ${answers.triggers.join(', ')}` : null,
+    answers.impact            ? `Impact on daily life: ${answers.impact}/5` : null,
+  ].filter(Boolean).join('\n')
+  content.push({ type: 'text', text: `New user skin assessment.\n${lines}\n\nAnalyse the photo and answers. Return ONLY valid JSON:\n{"condition":"most likely condition","severity":2,"summary":"2-3 warm friendly sentences, encouraging","observations":["short observation"],"confidence":65}\nConditions: Acne, Rosacea, Eczema, Perioral Dermatitis, Dermatitis, Folliculitis, Psoriasis, Seborrhoea, Redness, Contact Dermatitis, Other.\nseverity 0-5. Warm tone, not clinical.` })
+  const res = await fetch('/api/claude', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ max_tokens: 600, system: 'You are Patch — a warm health companion. Return only valid JSON, no markdown.', messages: [{ role: 'user', content }] })
+  })
+  const d = await res.json()
+  try {
+    return JSON.parse(d.content?.[0]?.text?.replace(/```json|```/g, '').trim())
+  } catch {
+    return { condition: 'Skin concern', severity: 2, summary: "Thanks for sharing. Patch will keep an eye on things as you track.", observations: [], confidence: 0 }
+  }
+}
+
 export const PATCH_SYSTEM = (foodLogs, symptomLogs, onboarded) => `You are Patch — a warm, intelligent health companion. Like a knowledgeable friend who genuinely wants to understand what's going on.
 
 Your job: understand what's going on, track food and symptoms, find connections.

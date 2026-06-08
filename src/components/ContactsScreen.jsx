@@ -4,7 +4,6 @@ import { SPECIALISTS } from '../constants/specialists.js'
 import { PATCH_LOCKUP } from '../assets/avatars.js'
 import { PatchAvatarImg, SpecAvatar } from './ui/Avatars.jsx'
 import { BarIcon } from './ui/Icons.jsx'
-import { supabase, signOut } from '../lib/supabase.js'
 
 function CRow({left,name,sub,right,unread,onTap,onAvatarTap}) {
   const [pressed,setPressed] = useState(false)
@@ -25,24 +24,30 @@ function CRow({left,name,sub,right,unread,onTap,onAvatarTap}) {
   )
 }
 
-export function ContactsScreen({doctors,onOpenChat,onAddDoctor,onOpenAnalysis,onOpenProfile,msgCount,onSignOut}) {
+export function ContactsScreen({doctors,onOpenChat,onAddDoctor,onOpenAnalysis,onOpenProfile,onOpenSettings,msgCount,day1Photo,firstName}) {
   const [search,setSearch] = useState("")
   const [focused,setFocused] = useState(false)
   const available = SPECIALISTS.filter(s=>!doctors.find(d=>d.id===s.id)&&(search===""||s.name.toLowerCase().includes(search.toLowerCase())||s.spec.toLowerCase().includes(search.toLowerCase())))
 
-  const handleSignOut = async () => {
-    await signOut()
-    onSignOut()
-  }
+  const initial = (firstName || '?')[0].toUpperCase()
 
   return (
     <div style={{display:"flex",flexDirection:"column",height:"100%",background:T.bg}}>
       <div style={{background:T.card,borderBottom:`1px solid ${T.border}`,padding:"12px 16px",paddingTop:"max(16px,env(safe-area-inset-top))"}}>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
           <img src={PATCH_LOCKUP} alt="patch" style={{height:30,width:"auto",display:"block"}}/>
-          <div style={{display:"flex",alignItems:"center",gap:8}}>
-            {supabase&&<button onClick={handleSignOut} style={{background:"none",border:"none",padding:"4px 8px",cursor:"pointer",color:T.muted,fontSize:12,touchAction:"manipulation"}}>Sign out</button>}
+          <div style={{display:"flex",alignItems:"center",gap:10}}>
             <button onClick={onOpenAnalysis} style={{background:"none",border:"none",padding:6,cursor:"pointer",color:T.sub,touchAction:"manipulation"}}><BarIcon/></button>
+            <button onClick={onOpenSettings} style={{
+              width:34,height:34,borderRadius:"50%",border:"none",cursor:"pointer",
+              background:T.coralLight,overflow:"hidden",padding:0,flexShrink:0,
+              display:"flex",alignItems:"center",justifyContent:"center",touchAction:"manipulation",
+            }}>
+              {day1Photo
+                ? <img src={day1Photo} alt="profile" style={{width:"100%",height:"100%",objectFit:"cover"}}/>
+                : <span style={{fontSize:15,fontWeight:800,color:T.coral}}>{initial}</span>
+              }
+            </button>
           </div>
         </div>
         <div style={{display:"flex",alignItems:"center",gap:10,background:T.bg,borderRadius:13,padding:"10px 14px",border:`1.5px solid ${focused?T.coral:T.border}`,transition:"border 0.15s"}}>
