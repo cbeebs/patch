@@ -25,6 +25,10 @@ export default function App() {
   const [profile,      setProfile]      = useState(null)
   const [showAnalysis, setShowAnalysis] = useState(false)
 
+  // closing-animation state for overlays
+  const [analysisClosing, setAnalysisClosing] = useState(false)
+  const [profileClosing,  setProfileClosing]  = useState(false)
+  const profileDocRef = useRef(null)
   const supabaseLoaded = useRef(false)
 
   // ── Auth ────────────────────────────────────────────────────────────────────
@@ -51,18 +55,18 @@ export default function App() {
       fetchSymptomLogs(uid),
       fetchUserData(uid),
     ]).then(([msgs, logs, symptoms, userData])=>{
-      if(msgs     != null) { setMessages(msgs);                    save(MSGS_KEY,    msgs) }
-      if(logs     != null) { setFoodLogs(logs);                    save(LOGS_KEY,    logs) }
-      if(symptoms != null) { setSymptomLogs(symptoms);             save(SYMPTOM_KEY, symptoms) }
+      if(msgs     != null) { setMessages(msgs);               save(MSGS_KEY,    msgs) }
+      if(logs     != null) { setFoodLogs(logs);               save(LOGS_KEY,    logs) }
+      if(symptoms != null) { setSymptomLogs(symptoms);        save(SYMPTOM_KEY, symptoms) }
       if(userData != null) {
-        setDoctors(userData.doctors ?? []);                        save(DOCTORS_KEY, userData.doctors ?? [])
-        setOnboarded(userData.onboarded ?? false);                 save(ONBOARD_KEY, userData.onboarded ?? false)
+        setDoctors(userData.doctors ?? []);                   save(DOCTORS_KEY, userData.doctors ?? [])
+        setOnboarded(userData.onboarded ?? false);            save(ONBOARD_KEY, userData.onboarded ?? false)
       }
       supabaseLoaded.current = true
     })
   },[session?.user?.id])
 
-  // ── localStorage mirror (offline / no-Supabase fallback) ───────────────────
+  // ── localStorage mirror ─────────────────────────────────────────────────────
 
   useEffect(()=>save(MSGS_KEY,    messages),    [messages])
   useEffect(()=>save(LOGS_KEY,    foodLogs),    [foodLogs])
@@ -126,13 +130,26 @@ export default function App() {
     if(userId) saveUserData(userId, { doctors, onboarded: v })
   },[userId, doctors])
 
+  // ── Overlay open/close with exit animation ──────────────────────────────────
+
+  const openAnalysis = () => setShowAnalysis(true)
+  const closeAnalysis = () => {
+    setAnalysisClosing(true)
+    setTimeout(()=>{ setShowAnalysis(false); setAnalysisClosing(false) }, 230)
+  }
+
+  const openProfile = (doc) => { profileDocRef.current = doc; setProfile(doc) }
+  const closeProfile = () => {
+    setProfileClosing(true)
+    setTimeout(()=>{ setProfile(null); setProfileClosing(false) }, 230)
+  }
+
   // ── Render ──────────────────────────────────────────────────────────────────
 
   if(session === undefined) {
     return (
       <div style={{height:'100dvh',display:'flex',alignItems:'center',justifyContent:'center',background:T.bg}}>
         <div style={{width:36,height:36,borderRadius:'50%',border:`3px solid ${T.border}`,borderTopColor:T.coral,animation:'patchSpin 0.7s linear infinite'}}/>
-        <style>{`@keyframes patchSpin{to{transform:rotate(360deg);}}`}</style>
       </div>
     )
   }
@@ -145,27 +162,43 @@ export default function App() {
     <div style={{fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Text','Segoe UI',sans-serif",height:'100dvh',maxWidth:430,margin:'0 auto',position:'relative',overflow:'hidden',background:T.bg}}>
       <style>{`
         *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;margin:0;padding:0;touch-action:manipulation;}
-        body{background:#FAF8F5;overscroll-behavior:none;}
         button,a,input,textarea,select{touch-action:manipulation;}
         input,textarea{font-size:16px!important;}
         ::-webkit-scrollbar{display:none;}
         @keyframes pdot{0%,80%,100%{transform:translateY(0);}40%{transform:translateY(-5px);}}
         @keyframes pfadeup{from{opacity:0;transform:translateY(5px);}to{opacity:1;transform:translateY(0);}}
         @keyframes pslide{from{transform:translateX(30px);opacity:0;}to{transform:translateX(0);opacity:1;}}
+        @keyframes pslide-out{from{transform:translateX(0);opacity:1;}to{transform:translateX(30px);opacity:0;}}
+        @keyframes pslide-up{from{transform:translateY(100%);}to{transform:translateY(0);}}
         @keyframes patchSpin{to{transform:rotate(360deg);}}
         textarea{resize:none;}
         input[type=range]{cursor:pointer;touch-action:none;}
       `}</style>
 
-      {screen==='contacts'&&(
+      {/* Contacts — always mounted; fades/shifts left when chat is active */}
+      <div style={{
+        position:'absolute',inset:0,
+        transform:screen==='chat'?'translateX(-6%)':'translateX(0)',
+        opacity:screen==='chat'?0:1,
+        pointerEvents:screen==='contacts'?'auto':'none',
+        transition:'transform 0.28s ease,opacity 0.22s ease',
+        willChange:'transform,opacity',
+      }}>
         <ContactsScreen doctors={doctors} msgCount={messages.length}
           onOpenChat={()=>setScreen('chat')}
           onAddDoctor={addDoctor}
-          onOpenAnalysis={()=>setShowAnalysis(true)}
-          onOpenProfile={setProfile}
+          onOpenAnalysis={openAnalysis}
+          onOpenProfile={openProfile}
           onSignOut={()=>setSession(null)}/>
-      )}
-      {screen==='chat'&&(
+      </div>
+
+      {/* Chat — always mounted; slides in from right */}
+      <div style={{
+        position:'absolute',inset:0,
+        transform:screen==='chat'?'translateX(0)':'translateX(100%)',
+        transition:'transform 0.28s ease',
+        willChange:'transform',
+      }}>
         <ChatScreen messages={messages}
           addMessage={addMessage}
           patchMessage={patchMessage}
@@ -178,13 +211,17 @@ export default function App() {
           onBack={()=>setScreen('contacts')}
           onboarded={onboarded}
           setOnboarded={setOnboardedPersisted}
-          onOpenProfile={setProfile}/>
+          onOpenProfile={openProfile}/>
+      </div>
+
+      {/* Overlays */}
+      {(showAnalysis||analysisClosing)&&(
+        <AnalysisScreen foodLogs={foodLogs} symptomLogs={symptomLogs}
+          onBack={closeAnalysis} closing={analysisClosing}/>
       )}
-      {showAnalysis&&(
-        <AnalysisScreen foodLogs={foodLogs} symptomLogs={symptomLogs} onBack={()=>setShowAnalysis(false)}/>
-      )}
-      {profile&&(
-        <ProfileScreen doc={profile} foodLogs={foodLogs} symptomLogs={symptomLogs} onBack={()=>setProfile(null)}/>
+      {(profile||profileClosing)&&(
+        <ProfileScreen doc={profileDocRef.current} foodLogs={foodLogs}
+          symptomLogs={symptomLogs} onBack={closeProfile} closing={profileClosing}/>
       )}
     </div>
   )

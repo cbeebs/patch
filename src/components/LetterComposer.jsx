@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { T } from '../constants/theme.js'
 import { BackIcon } from './ui/Icons.jsx'
 
-export function LetterComposer({analysisData,foodLogs,symptomLogs,onClose}) {
+export function LetterComposer({analysisData,foodLogs,symptomLogs,onClose,closing}) {
   const [period,setPeriod]       = useState("7days")
   const [toName,setToName]       = useState("")
   const [toAddress,setToAddress] = useState("")
@@ -94,7 +94,7 @@ patch.health${fromEmail?"\n\nCorrespondence: "+fromEmail:""}`
   }
 
   if(step==="preview") return (
-    <div style={{position:"absolute",inset:0,background:T.bg,zIndex:500,display:"flex",flexDirection:"column",animation:"pslide 0.22s ease"}}>
+    <div style={{position:"absolute",inset:0,background:T.bg,zIndex:500,display:"flex",flexDirection:"column",animation:closing?"pslide-out 0.22s ease forwards":"pslide 0.22s ease"}}>
       <div style={{background:T.card,borderBottom:`1px solid ${T.border}`,padding:"12px 16px",paddingTop:"max(14px,env(safe-area-inset-top))",display:"flex",alignItems:"center",gap:12}}>
         <button onClick={()=>setStep("compose")} style={{background:"none",border:"none",padding:"4px 8px 4px 0",cursor:"pointer",color:T.sub,touchAction:"manipulation"}}><BackIcon/></button>
         <div style={{flex:1}}><p style={{margin:0,fontSize:17,fontWeight:"700",color:T.text}}>Letter Preview</p><p style={{margin:0,fontSize:12,color:T.sub}}>To {toName||"Doctor"} · {periodLabel}</p></div>
@@ -135,7 +135,7 @@ patch.health${fromEmail?"\n\nCorrespondence: "+fromEmail:""}`
   )
 
   return (
-    <div style={{position:"absolute",inset:0,background:T.bg,zIndex:500,display:"flex",flexDirection:"column",animation:"pslide 0.22s ease"}}>
+    <div style={{position:"absolute",inset:0,background:T.bg,zIndex:500,display:"flex",flexDirection:"column",animation:closing?"pslide-out 0.22s ease forwards":"pslide 0.22s ease"}}>
       <div style={{background:T.card,borderBottom:`1px solid ${T.border}`,padding:"12px 16px",paddingTop:"max(14px,env(safe-area-inset-top))",display:"flex",alignItems:"center",gap:12}}>
         <button onClick={onClose} style={{background:"none",border:"none",padding:"4px 8px 4px 0",cursor:"pointer",color:T.sub,touchAction:"manipulation"}}><BackIcon/></button>
         <p style={{margin:0,fontSize:17,fontWeight:"700",color:T.text}}>Write a Letter</p>
@@ -144,7 +144,7 @@ patch.health${fromEmail?"\n\nCorrespondence: "+fromEmail:""}`
         <p style={{margin:"0 0 10px",fontSize:11,fontWeight:"700",color:T.muted,letterSpacing:"0.9px",textTransform:"uppercase"}}>TIME PERIOD</p>
         <div style={{display:"flex",gap:8,marginBottom:24,flexWrap:"wrap"}}>
           {periods.map(p=>(
-            <button key={p.id} onClick={()=>setPeriod(p.id)} style={{padding:"8px 16px",borderRadius:20,cursor:"pointer",transition:"all 0.12s",border:period===p.id?"none":`1.5px solid ${T.border}`,background:period===p.id?T.coral:T.card,color:period===p.id?"white":T.text,fontSize:13,fontWeight:period===p.id?"700":"400",boxShadow:period===p.id?`0 2px 8px ${T.coral}44`:"none",touchAction:"manipulation"}}>{p.label}</button>
+            <button key={p.id} onClick={()=>setPeriod(p.id)} style={{padding:"8px 16px",borderRadius:20,cursor:"pointer",transition:"all 0.12s",border:period===p.id?"none":`1.5px solid ${T.border}`,background:period===p.id?T.coral:T.card,color:period===p.id?"white":T.text,fontSize:13,fontWeight:period===p.id?"700":"400",boxShadow:"none",touchAction:"manipulation"}}>{p.label}</button>
           ))}
         </div>
         <p style={{margin:"0 0 10px",fontSize:11,fontWeight:"700",color:T.muted,letterSpacing:"0.9px",textTransform:"uppercase"}}>DOCTOR DETAILS</p>
@@ -167,7 +167,7 @@ patch.health${fromEmail?"\n\nCorrespondence: "+fromEmail:""}`
         </div>
       </div>
       <div style={{padding:"12px 16px",paddingBottom:"max(16px,env(safe-area-inset-bottom))",background:T.card,borderTop:`1px solid ${T.border}`}}>
-        <button onClick={generateLetter} style={{width:"100%",background:T.coral,color:"white",border:"none",borderRadius:13,padding:"14px",fontSize:15,fontWeight:"700",cursor:"pointer",boxShadow:`0 4px 16px ${T.coral}44`,touchAction:"manipulation"}}>
+        <button onClick={generateLetter} style={{width:"100%",background:T.coral,color:"white",border:"none",borderRadius:13,padding:"14px",fontSize:15,fontWeight:"700",cursor:"pointer",boxShadow:"none",touchAction:"manipulation"}}>
           Generate Letter →
         </button>
       </div>
