@@ -16,15 +16,16 @@ function IBtn({children,onClick,accent}) {
   )
 }
 
-export function ChatScreen({messages,setMessages,foodLogs,setFoodLogs,symptomLogs,setSymptomLogs,onBack,onboarded,setOnboarded,onOpenProfile}) {
+export function ChatScreen({messages,addMessage,patchMessage,removeMessage,foodLogs,addFoodLog,patchFoodLog,symptomLogs,addSymptomLog,onBack,onboarded,setOnboarded,onOpenProfile}) {
   const [input,setInput]     = useState("")
   const [loading,setLoading] = useState(false)
   const [sevCtx,setSevCtx]   = useState(null)
   const [sevVal,setSevVal]   = useState(2)
   const [error,setError]     = useState(null)
-  const endRef  = useRef(null)
-  const fileRef = useRef(null)
-  const camRef  = useRef(null)
+  const endRef    = useRef(null)
+  const fileRef   = useRef(null)
+  const camRef    = useRef(null)
+  const statusRef = useRef(null) // id of temporary status bubble
 
   useEffect(()=>{ endRef.current?.scrollIntoView({behavior:"smooth"}) },[messages,loading])
 
@@ -44,14 +45,25 @@ export function ChatScreen({messages,setMessages,foodLogs,setFoodLogs,symptomLog
       setTimeout(()=>addPatch("Morning ☀️ Good time for a quick check-in — send me a photo in natural light when you're ready."),800)
   },[])
 
-  const addPatch=useCallback((text,extras={})=>setMessages(p=>[...p,{role:"patch",text,ts:Date.now(),id:uid(),...extras}]),[setMessages])
-  const addUser =useCallback((text,image=null)=>setMessages(p=>[...p,{role:"user",text,image,ts:Date.now(),id:uid()}]),[setMessages])
+  const addPatch=useCallback((text,extras={})=>{
+    const msg={role:"patch",text,ts:Date.now(),id:uid(),...extras}
+    addMessage(msg)
+  },[addMessage])
+
+  const addUser=useCallback((text,image=null)=>{
+    const msg={role:"user",text,image,ts:Date.now(),id:uid()}
+    addMessage(msg)
+  },[addMessage])
+
+  const removeStatus=useCallback(()=>{
+    if(statusRef.current) { removeMessage(statusRef.current); statusRef.current=null }
+  },[removeMessage])
 
   const handleAllergenDone=useCallback((msgId,sel)=>{
-    setMessages(p=>p.map(m=>m.id===msgId?{...m,allergenDone:true}:m))
-    setFoodLogs(p=>p.map(l=>l._msgId===msgId?{...l,allergens:sel,_pending:false}:l))
+    patchMessage(msgId, { allergenDone: true })
+    patchFoodLog(msgId, { allergens: sel, _pending: false })
     addPatch(`Logged ✓${sel.length>0?` — flagged ${sel.join(", ")}`:""}`)
-  },[setMessages,setFoodLogs,addPatch])
+  },[patchMessage,patchFoodLog,addPatch])
 
   const handleImage=async(file)=>{
     if(!file) return
@@ -69,14 +81,16 @@ export function ChatScreen({messages,setMessages,foodLogs,setFoodLogs,symptomLog
       const isSymptom=(isMorning&&!checkedToday)||askedForPhoto
       try {
         if(isSymptom) {
-          addPatch("Checking...")
+          const statusId=uid()
+          statusRef.current=statusId
+          addMessage({role:"patch",text:"Checking...",ts:Date.now(),id:statusId})
           const ctx=`${foodLogs.length} food logs, ${symptomLogs.length} symptom checks`
           const result=await analyseSymptom(base64,ctx)
-          setMessages(p=>p.filter(m=>m.text!=="Checking..."))
+          removeStatus()
           addPatch(result.observation)
           setSevVal(result.severity)
           setSevCtx({label:`I'd rate this ${result.severity}/5 — adjust if needed`,onConfirm:(v)=>{
-            setSymptomLogs(p=>[...p,{date:todayStr(),severity:v,conditions:result.possible_conditions,ts:Date.now()}])
+            addSymptomLog({date:todayStr(),severity:v,conditions:result.possible_conditions,ts:Date.now()})
             setSevCtx(null)
             addPatch(`Logged ✓ severity ${v}/5.`)
             if(result.follow_up) setTimeout(()=>addPatch(result.follow_up),700)
@@ -84,19 +98,19 @@ export function ChatScreen({messages,setMessages,foodLogs,setFoodLogs,symptomLog
           }})
         } else {
           const meal=getMeal(h)
-          addPatch(`Identifying your ${meal.toLowerCase()}...`)
+          const statusId=uid()
+          statusRef.current=statusId
+          addMessage({role:"patch",text:`Identifying your ${meal.toLowerCase()}...`,ts:Date.now(),id:statusId})
           const result=await analyseFood(base64)
+          removeStatus()
           const msgId=uid()
           const tempLog={date:todayStr(),meal,time:new Date().toISOString(),description:result.description,ingredients:result.ingredients,allergens:[],ts:Date.now(),_pending:true,_msgId:msgId}
-          setFoodLogs(p=>[...p,tempLog])
-          setMessages(p=>{
-            const cleaned=p.filter(m=>m.text!==`Identifying your ${meal.toLowerCase()}...`)
-            return [...cleaned,{role:"patch",text:`${result.description}\n\nAny allergens to flag?`,ts:Date.now(),id:msgId,allergenPicker:{likely:result.likely_allergens||[],possible:result.possible_allergens||[]}}]
-          })
+          addFoodLog(tempLog)
+          addMessage({role:"patch",text:`${result.description}\n\nAny allergens to flag?`,ts:Date.now(),id:msgId,allergenPicker:{likely:result.likely_allergens||[],possible:result.possible_allergens||[]}})
           if(!onboarded) setOnboarded(true)
         }
       } catch(err) {
-        setMessages(p=>p.filter(m=>m.text!=="Checking..."&&!m.text?.startsWith("Identifying")))
+        removeStatus()
         setError("Couldn't reach Patch — check your connection.")
       }
       setLoading(false)

@@ -1,7 +1,14 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { T } from './constants/theme.js'
 import { load, save, MSGS_KEY, LOGS_KEY, SYMPTOM_KEY, DOCTORS_KEY, ONBOARD_KEY, SCREEN_KEY } from './lib/utils.js'
-import { supabase, getSession, onAuthChange, signOut } from './lib/supabase.js'
+import {
+  supabase, getSession, onAuthChange, signOut,
+  fetchMessages, insertMessage, updateMessage, deleteMessage,
+  fetchFoodLogs, insertFoodLog, updateFoodLog,
+  fetchSymptomLogs, insertSymptomLog,
+  fetchDoctors, insertDoctor,
+  fetchSettings, upsertSettings,
+} from './lib/supabase.js'
 import { Auth } from './components/Auth.jsx'
 import { ContactsScreen } from './components/ContactsScreen.jsx'
 import { ChatScreen } from './components/ChatScreen.jsx'
@@ -19,6 +26,8 @@ export default function App() {
   const [profile,      setProfile]      = useState(null)
   const [showAnalysis, setShowAnalysis] = useState(false)
 
+  // ── Auth ────────────────────────────────────────────────────────────────────
+
   useEffect(()=>{
     if(!supabase) { setSession(null); return }
     getSession().then(s=>setSession(s))
@@ -29,6 +38,28 @@ export default function App() {
     return unsub
   },[])
 
+  // ── Load from Supabase when session starts ──────────────────────────────────
+
+  useEffect(()=>{
+    if(!session?.user?.id) return
+    const uid = session.user.id
+    Promise.all([
+      fetchMessages(uid),
+      fetchFoodLogs(uid),
+      fetchSymptomLogs(uid),
+      fetchDoctors(uid),
+      fetchSettings(uid),
+    ]).then(([msgs, logs, symptoms, docs, settings])=>{
+      if(msgs != null)     { setMessages(msgs);    save(MSGS_KEY, msgs) }
+      if(logs != null)     { setFoodLogs(logs);    save(LOGS_KEY, logs) }
+      if(symptoms != null) { setSymptomLogs(symptoms); save(SYMPTOM_KEY, symptoms) }
+      if(docs != null)     { setDoctors(docs);     save(DOCTORS_KEY, docs) }
+      if(settings != null) { setOnboarded(settings.onboarded ?? false); save(ONBOARD_KEY, settings.onboarded ?? false) }
+    })
+  },[session?.user?.id])
+
+  // ── localStorage mirror (offline / no-Supabase fallback) ───────────────────
+
   useEffect(()=>save(MSGS_KEY,    messages),    [messages])
   useEffect(()=>save(LOGS_KEY,    foodLogs),    [foodLogs])
   useEffect(()=>save(SYMPTOM_KEY, symptomLogs), [symptomLogs])
@@ -36,7 +67,62 @@ export default function App() {
   useEffect(()=>save(ONBOARD_KEY, onboarded),   [onboarded])
   useEffect(()=>save(SCREEN_KEY,  screen),      [screen])
 
-  const addDoctor = s => { if(!doctors.find(d=>d.id===s.id)) setDoctors(p=>[...p,s]) }
+  // ── Mutation helpers ────────────────────────────────────────────────────────
+
+  const userId = session?.user?.id
+
+  const addMessage = useCallback((msg) => {
+    setMessages(p => [...p, msg])
+    if(userId) insertMessage(msg, userId)
+  }, [userId])
+
+  const removeMessage = useCallback((id) => {
+    setMessages(p => p.filter(m => m.id !== id))
+    if(userId) deleteMessage(id, userId)
+  }, [userId])
+
+  const patchMessage = useCallback((id, updates) => {
+    setMessages(p => p.map(m => m.id === id ? {...m, ...updates} : m))
+    if(userId) updateMessage(id, updates, userId)
+  }, [userId])
+
+  const addFoodLog = useCallback(async (log) => {
+    let dbId = null
+    if(userId) dbId = await insertFoodLog(log, userId)
+    setFoodLogs(p => [...p, dbId ? {...log, _dbId: dbId} : log])
+    return dbId
+  }, [userId])
+
+  const patchFoodLog = useCallback((msgId, updates) => {
+    setFoodLogs(p => p.map(l => {
+      if(l._msgId !== msgId) return l
+      const updated = {...l, ...updates}
+      if(l._dbId && userId) updateFoodLog(l._dbId, updates, userId)
+      return updated
+    }))
+  }, [userId])
+
+  const addSymptomLog = useCallback(async (log) => {
+    let dbId = null
+    if(userId) dbId = await insertSymptomLog(log, userId)
+    setSymptomLogs(p => [...p, dbId ? {...log, _dbId: dbId} : log])
+  }, [userId])
+
+  const addDoctor = useCallback((doc) => {
+    setDoctors(p => {
+      if(p.find(d=>d.id===doc.id)) return p
+      if(userId) insertDoctor(doc, userId)
+      return [...p, doc]
+    })
+  }, [userId])
+
+  const setOnboardedPersisted = useCallback((v) => {
+    setOnboarded(v)
+    save(ONBOARD_KEY, v)
+    if(userId) upsertSettings(userId, { onboarded: v })
+  }, [userId])
+
+  // ── Render ──────────────────────────────────────────────────────────────────
 
   if(session === undefined) {
     return (
@@ -76,12 +162,18 @@ export default function App() {
           onSignOut={()=>setSession(null)}/>
       )}
       {screen==="chat"&&(
-        <ChatScreen messages={messages} setMessages={setMessages}
-          foodLogs={foodLogs} setFoodLogs={setFoodLogs}
-          symptomLogs={symptomLogs} setSymptomLogs={setSymptomLogs}
+        <ChatScreen messages={messages}
+          addMessage={addMessage}
+          patchMessage={patchMessage}
+          removeMessage={removeMessage}
+          foodLogs={foodLogs}
+          addFoodLog={addFoodLog}
+          patchFoodLog={patchFoodLog}
+          symptomLogs={symptomLogs}
+          addSymptomLog={addSymptomLog}
           onBack={()=>setScreen("contacts")}
           onboarded={onboarded}
-          setOnboarded={v=>{setOnboarded(v);save(ONBOARD_KEY,v);}}
+          setOnboarded={setOnboardedPersisted}
           onOpenProfile={setProfile}/>
       )}
       {showAnalysis&&(
